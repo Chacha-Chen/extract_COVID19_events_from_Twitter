@@ -99,6 +99,7 @@ with open(results_tsv_save_file, "w") as tsv_out:
 			accuracy = classification_report['accuracy']
 			CM = results["CM"]
 			# # SQuAD results
+			# SQuAD results
 			total_EM = results["SQuAD_EM"]
 			total_F1 = results["SQuAD_F1"]
 			total_tweets = results["SQuAD_total"]
