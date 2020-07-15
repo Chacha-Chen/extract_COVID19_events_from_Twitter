@@ -99,12 +99,12 @@ with open(results_tsv_save_file, "w") as tsv_out:
 			accuracy = classification_report['accuracy']
 			CM = results["CM"]
 			# # SQuAD results
-			# total_EM = results["SQuAD_EM"]
-			# total_F1 = results["SQuAD_F1"]
-			# total_tweets = results["SQuAD_total"]
-			# pos_EM = results["SQuAD_Pos. EM"]
-			# pos_F1 = results["SQuAD_Pos. F1"]
-			# total_pos_tweets = results["SQuAD_Pos. EM_F1_total"]
+			total_EM = results["SQuAD_EM"]
+			total_F1 = results["SQuAD_F1"]
+			total_tweets = results["SQuAD_total"]
+			pos_EM = results["SQuAD_Pos. EM"]
+			pos_F1 = results["SQuAD_Pos. F1"]
+			total_pos_tweets = results["SQuAD_Pos. EM_F1_total"]
 			# Best threshold and dev F1
 			best_dev_threshold = results["best_dev_threshold"]
 			best_dev_F1 = results["best_dev_F1"]
