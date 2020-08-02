@@ -15,8 +15,8 @@ logging.getLogger().setLevel(logging.INFO)
 Q_TOKEN = "<Q_TARGET>"
 URL_TOKEN = "<URL>"
 parser = argparse.ArgumentParser()
-parser.add_argument("-d", "--data_file", help="Path to the data file", type=str, required=True)
-parser.add_argument("-s", "--save_file", help="Path to the Instances, Statistics and Header pickle save file", type=str, required=True)
+parser.add_argument("-d", "--data_file", help="Path to the data file", type=str, required=False,default='./data/positive-add_text.jsonl')
+parser.add_argument("-s", "--save_file", help="Path to the Instances, Statistics and Header pickle save file", type=str, required=False,default='./data/test_positive.pkl')
 args = parser.parse_args()
 
 def writeJSONLine(data, path):
@@ -388,16 +388,16 @@ def make_instances_from_dataset(dataset):
 	question_tag_gold_labels = [qt + "_label" for qt in question_tags]
 	return task_instances_dict, tag_statistics, question_keys_and_tags
 
-def main():
-	logging.info(f"Reading annotations from {args.data_file} file...")
-	dataset = read_jsonl_datafile(args.data_file)
+def data_preprocess(data_file, save_file):
+	logging.info(f"Reading annotations from {data_file} file...")
+	dataset = read_jsonl_datafile(data_file)
 	logging.info(f"Total annotations:{len(dataset)}")
 	logging.info(f"Creating labeled data instances from annotations...")
 	print(dataset[0].keys())
 	task_instances_dict, tag_statistics, question_keys_and_tags = make_instances_from_dataset(dataset)
 	# Save in pickle file
-	logging.info(f"Saving all the instances, statistics and labels in {args.save_file}")
-	save_in_pickle((task_instances_dict, tag_statistics, question_keys_and_tags), args.save_file)
+	logging.info(f"Saving all the instances, statistics and labels in {save_file}")
+	save_in_pickle((task_instances_dict, tag_statistics, question_keys_and_tags), save_file)
 
 if __name__ == '__main__':
-	main()
+	data_preprocess(args.data_file, args.save_file)

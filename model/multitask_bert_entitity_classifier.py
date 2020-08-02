@@ -2,23 +2,18 @@ from transformers import BertTokenizer, BertPreTrainedModel, BertModel, BertConf
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 import torch
-
-RANDOM_SEED = 901
 import random
-random.seed(RANDOM_SEED)
 
 import numpy as np
 from collections import Counter
 import pickle
 from pprint import pprint
-
 from sklearn import metrics
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import plot_precision_recall_curve
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
 import os
 from tqdm import tqdm
 import argparse
@@ -27,15 +22,14 @@ import datetime
 import string
 import re
 import collections
-
-from utils import log_list, make_dir_if_not_exists, save_in_pickle, load_from_pickle, get_multitask_instances_for_valid_tasks, split_multitask_instances_in_train_dev_test, log_data_statistics, save_in_json, get_raw_scores, get_TP_FP_FN
+# from utils import log_list, make_dir_if_not_exists, save_in_pickle, load_from_pickle, get_multitask_instances_for_valid_tasks, split_multitask_instances_in_train_dev_test, log_data_statistics, save_in_json, get_raw_scores, get_TP_FP_FN
+from utils import log_list, load_from_pickle, get_multitask_instances_for_valid_tasks, split_multitask_instances_in_train_dev_test, log_data_statistics, save_in_json, get_raw_scores, get_TP_FP_FN
 
 parser = argparse.ArgumentParser()
-
-parser.add_argument("-d", "--data_file", help="Path to the pickle file that contains the training instances", type=str, required=True)
-parser.add_argument("-t", "--task", help="Event for which we want to train the baseline", type=str, required=True)
-parser.add_argument("-s", "--save_directory", help="Path to the directory where we will save model and the tokenizer", type=str, required=True)
-parser.add_argument("-o", "--output_dir", help="Path to the output directory where we will save all the model results", type=str, required=True)
+parser.add_argument("-d", "--data_file", help="Path to the pickle file that contains the training instances", type=str)
+parser.add_argument("-t", "--task", help="Event for which we want to train the baseline", type=str)
+parser.add_argument("-s", "--save_directory", help="Path to the directory where we will save model and the tokenizer", type=str)
+parser.add_argument("-o", "--output_dir", help="Path to the output directory where we will save all the model results", type=str)
 parser.add_argument("-rt", "--retrain", help="Flag that will indicate if the model needs to be retrained or loaded from the existing save_directory", action="store_true")
 parser.add_argument("-bs", "--batch_size", help="Train batch size for BERT model", type=int, default=32)
 parser.add_argument("-e", "--n_epochs", help="Number of epochs", type=int, default=8)
@@ -43,30 +37,8 @@ args = parser.parse_args()
 
 import logging
 # Ref: https://stackoverflow.com/a/49202811/4535284
-for handler in logging.root.handlers[:]:
-	logging.root.removeHandler(handler)
-# Also add the stream handler so that it logs on STD out as well
-# Ref: https://stackoverflow.com/a/46098711/4535284
-make_dir_if_not_exists(args.output_dir)
-if args.retrain:
-	logfile = os.path.join(args.output_dir, "train_output.log")
-else:
-	logfile = os.path.join(args.output_dir, "output.log")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.FileHandler(logfile, mode='w'), logging.StreamHandler()])
-
 Q_TOKEN = "<Q_TARGET>"
 URL_TOKEN = "<URL>"
-RANDOM_SEED = 901
-torch.manual_seed(RANDOM_SEED)
-POSSIBLE_BATCH_SIZE = 8
-
-# export CUDA_VISIBLE_DEVICES=3
-if torch.cuda.is_available():
-	device = torch.device("cuda")
-	logging.info(f"Using GPU{torch.cuda.get_device_name(0)} to train")
-else:
-	device = torch.device("cpu")
-	logging.info(f"Using CPU to train")
 
 def make_dir_if_not_exists(directory):
 	if not os.path.exists(directory):
@@ -408,15 +380,43 @@ def log_multitask_data_statistics(data, subtasks):
 		logging.info(f"Subtask:{subtask:>15}\tPositive labels = {pos_counts[subtask]}\tNegative labels = {neg_counts[subtask]}")
 	return len(data), pos_counts, neg_counts
 
-def main():
+def bert_classifier(data_file, task, save_directory, output_dir, retrain, batch_size=32, n_epochs=8):
+	for handler in logging.root.handlers[:]:
+		logging.root.removeHandler(handler)
+	# Also add the stream handler so that it logs on STD out as well
+	# Ref: https://stackoverflow.com/a/46098711/4535284
+
+	make_dir_if_not_exists(output_dir)
+	if retrain:
+		logfile = os.path.join(output_dir, "train_output.log")
+	else:
+		logfile = os.path.join(output_dir, "output.log")
+	logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+						handlers=[logging.FileHandler(logfile, mode='w'), logging.StreamHandler()])
+
+
+	RANDOM_SEED = 901
+	torch.manual_seed(RANDOM_SEED)
+	POSSIBLE_BATCH_SIZE = 8
+
+	# export CUDA_VISIBLE_DEVICES=3
+	if torch.cuda.is_available():
+		device = torch.device("cuda")
+		logging.info(f"Using GPU{torch.cuda.get_device_name(0)} to train")
+	else:
+		device = torch.device("cpu")
+		logging.info(f"Using CPU to train")
+
+	RANDOM_SEED = 901
+	random.seed(RANDOM_SEED)
 	# Read all the data instances
-	task_instances_dict, tag_statistics, question_keys_and_tags = load_from_pickle(args.data_file)
+	task_instances_dict, tag_statistics, question_keys_and_tags = load_from_pickle(data_file)
 	data, subtasks_list = get_multitask_instances_for_valid_tasks(task_instances_dict, tag_statistics)
 
-	if args.retrain:
+	if retrain:
 		logging.info("Creating and training the model from 'bert-base-cased' ")
 		# Create the save_directory if not exists
-		make_dir_if_not_exists(args.save_directory)
+		make_dir_if_not_exists(save_directory)
 
 		# Initialize tokenizer and model with pretrained weights
 		tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
@@ -444,13 +444,13 @@ def main():
 		model.config.vocab_size = model.config.vocab_size + len(new_special_tokens_dict["additional_special_tokens"])
 	else:
 		# Load the tokenizer and model from the save_directory
-		tokenizer = BertTokenizer.from_pretrained(args.save_directory)
-		model = MultiTaskBertForCovidEntityClassification.from_pretrained(args.save_directory)
+		tokenizer = BertTokenizer.from_pretrained(save_directory)
+		model = MultiTaskBertForCovidEntityClassification.from_pretrained(save_directory)
 		# print(model.state_dict().keys())
 		# TODO save and load the subtask classifier weights separately
 		# Load from individual state dicts
 		for subtask in model.subtasks:
-			model.classifiers[subtask].load_state_dict(torch.load(os.path.join(args.save_directory, f"{subtask}_classifier.bin")))
+			model.classifiers[subtask].load_state_dict(torch.load(os.path.join(save_directory, f"{subtask}_classifier.bin")))
 		# print(model.config)
 		# exit()
 	model.to(device)
@@ -459,7 +459,7 @@ def main():
 		classifier.to(device)
 	entity_start_token_id = tokenizer.convert_tokens_to_ids(["<E>"])[0]
 	
-	logging.info(f"Task dataset for task: {args.task} loaded from {args.data_file}.")
+	logging.info(f"Task dataset for task: {task} loaded from {data_file}.")
 	
 	model_config = dict()
 	results = dict()
@@ -495,7 +495,7 @@ def main():
 	logging.info("Created train and test dataloaders with batch aggregation")
 
 	# Only retrain if needed
-	if args.retrain:
+	if retrain:
 		##################################################################################################
 		# NOTE: Training Tutorial Reference
 		# https://mccormickml.com/2019/07/22/BERT-fine-tuning/#41-bertforsequenceclassification	
@@ -513,7 +513,7 @@ def main():
 		# Number of training epochs. The BERT authors recommend between 2 and 4. 
 		# We chose to run for 4, but we'll see later that this may be over-fitting the
 		# training data.
-		epochs = args.n_epochs
+		epochs = n_epochs
 
 		# Total number of training steps is [number of batches] x [number of epochs]. 
 		# (Note that this is not the same as the number of training samples).
@@ -526,12 +526,12 @@ def main():
 		# validation accuracy, and timings.
 		training_stats = []
 
-		logging.info(f"Initiating training loop for {args.n_epochs} epochs...")
+		logging.info(f"Initiating training loop for {n_epochs} epochs...")
 		# Measure the total training time for the whole run.
 		total_start_time = time.time()
 
 		# Find the accumulation steps
-		accumulation_steps = args.batch_size/POSSIBLE_BATCH_SIZE
+		accumulation_steps = batch_size/POSSIBLE_BATCH_SIZE
 
 		# Loss trajectory for epochs
 		epoch_train_loss = list()
@@ -602,7 +602,7 @@ def main():
 					# Put the model in evaluation mode--the dropout layers behave differently
 					# during evaluation.
 					model.eval()
-					dev_predicted_labels, dev_prediction_scores, dev_gold_labels = make_predictions_on_dataset(dev_dataloader, model, device, args.task + "_dev", True)
+					dev_predicted_labels, dev_prediction_scores, dev_gold_labels = make_predictions_on_dataset(dev_dataloader, model, device, task + "_dev", True)
 					for subtask in model.subtasks:
 						dev_subtask_data = dev_subtasks_data[subtask]
 						dev_subtask_prediction_scores = dev_prediction_scores[subtask]
@@ -611,7 +611,7 @@ def main():
 						dev_subtasks_validation_statistics[subtask].append((epoch + 1, step + 1, dev_TP + dev_FN, dev_F1, dev_P, dev_R, dev_TP, dev_FP, dev_FN))
 
 					# logging.info("DEBUG:Validation on Test")
-					# dev_predicted_labels, dev_prediction_scores, dev_gold_labels = make_predictions_on_dataset(test_dataloader, model, device, args.task + "_dev", True)
+					# dev_predicted_labels, dev_prediction_scores, dev_gold_labels = make_predictions_on_dataset(test_dataloader, model, device, task + "_dev", True)
 					# for subtask in model.subtasks:
 					# 	dev_subtask_data = test_subtasks_data[subtask]
 					# 	dev_subtask_prediction_scores = dev_prediction_scores[subtask]
@@ -639,17 +639,17 @@ def main():
 		log_list(training_stats)
 		
 		# Save the model and the Tokenizer here:
-		logging.info(f"Saving the model and tokenizer in {args.save_directory}")
-		model.save_pretrained(args.save_directory)
+		logging.info(f"Saving the model and tokenizer in {save_directory}")
+		model.save_pretrained(save_directory)
 		# Save each subtask classifiers weights to individual state dicts
 		for subtask, classifier in model.classifiers.items():
-			classifier_save_file = os.path.join(args.save_directory, f"{subtask}_classifier.bin")
+			classifier_save_file = os.path.join(save_directory, f"{subtask}_classifier.bin")
 			logging.info(f"Saving the model's {subtask} classifier weights at {classifier_save_file}")
 			torch.save(classifier.state_dict(), classifier_save_file)
-		tokenizer.save_pretrained(args.save_directory)
+		tokenizer.save_pretrained(save_directory)
 
 		# Plot the train loss trajectory in a plot
-		train_loss_trajectory_plot_file = os.path.join(args.output_dir, "train_loss_trajectory.png")
+		train_loss_trajectory_plot_file = os.path.join(output_dir, "train_loss_trajectory.png")
 		logging.info(f"Saving the Train loss trajectory at {train_loss_trajectory_plot_file}")
 		plot_train_loss(epoch_train_loss, train_loss_trajectory_plot_file)
 
@@ -660,12 +660,12 @@ def main():
 
 	# Save the model name in the model_config file
 	model_config["model"] = "MultiTaskBertForCovidEntityClassification"
-	model_config["epochs"] = args.n_epochs
+	model_config["epochs"] = n_epochs
 
 	# Find best threshold for each subtask based on dev set performance
 	thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-	test_predicted_labels, test_prediction_scores, test_gold_labels = make_predictions_on_dataset(test_dataloader, model, device, args.task, True)
-	dev_predicted_labels, dev_prediction_scores, dev_gold_labels = make_predictions_on_dataset(dev_dataloader, model, device, args.task + "_dev", True)
+	test_predicted_labels, test_prediction_scores, test_gold_labels = make_predictions_on_dataset(test_dataloader, model, device, task, True)
+	dev_predicted_labels, dev_prediction_scores, dev_gold_labels = make_predictions_on_dataset(dev_dataloader, model, device, task + "_dev", True)
 
 	best_test_thresholds = {subtask: 0.5 for subtask in model.subtasks}
 	best_dev_thresholds = {subtask: 0.5 for subtask in model.subtasks}
@@ -708,9 +708,9 @@ def main():
 
 	# Evaluate on Test
 	logging.info("Testing on test dataset")
-	# test_predicted_labels, test_prediction_scores, test_gold_labels = make_predictions_on_dataset(test_dataloader, model, device, args.task)
+	# test_predicted_labels, test_prediction_scores, test_gold_labels = make_predictions_on_dataset(test_dataloader, model, device, task)
 
-	predicted_labels, prediction_scores, gold_labels = make_predictions_on_dataset(test_dataloader, model, device, args.task)
+	predicted_labels, prediction_scores, gold_labels = make_predictions_on_dataset(test_dataloader, model, device, task)
 	
 	# Test 
 	for subtask in model.subtasks:
@@ -785,17 +785,21 @@ def main():
 		# 	logging.info("\t".join(list_to_print))
 	
 	# Save model_config and results
-	model_config_file = os.path.join(args.output_dir, "model_config.json")
-	results_file = os.path.join(args.output_dir, "results.json")
+	model_config_file = os.path.join(output_dir, "model_config.json")
+	results_file = os.path.join(output_dir, "results.json")
 	logging.info(f"Saving model config at {model_config_file}")
 	save_in_json(model_config, model_config_file)
 	logging.info(f"Saving results at {results_file}")
 	save_in_json(results, results_file)
 
-	# if args.save_figure_file:
+	# if save_figure_file:
 	# 	# Plot the precision recall curve
 	# 	disp = plot_precision_recall_curve(lr, test_X, test_Y)
 	# 	disp.ax_.set_title('2-class Precision-Recall curve')
-	# 	disp.ax_.figure.savefig(args.save_figure_file)
+	# 	disp.ax_.figure.savefig(save_figure_file)
+
+# def main():
+# 	bert_classifier()
+
 if __name__ == '__main__':
-	main()
+	bert_classifier(args.data_file, args.task, args.save_directory, args.output_dir, args.retrain, args.batch_size, args.n_epochs)
