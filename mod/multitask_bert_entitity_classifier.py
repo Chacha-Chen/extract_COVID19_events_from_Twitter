@@ -411,11 +411,11 @@ def bert_classifier(data_file, task, save_directory, output_dir, retrain, batch_
 		device = torch.device("cpu")
 		logging.info(f"Using CPU to train")
 
-
 	RANDOM_SEED = 901
 	random.seed(RANDOM_SEED)
 	# Read all the data instances
-	task_instances_dict, tag_statistics, _ = load_from_pickle(data_file)
+	task_instances_dict, tag_statistics, question_keys_and_tags = load_from_pickle(data_file)
+
 	data, subtasks_list = get_multitask_instances_for_valid_tasks(task_instances_dict, tag_statistics)
 
 	if retrain:
@@ -463,9 +463,9 @@ def bert_classifier(data_file, task, save_directory, output_dir, retrain, batch_
 	for subtask, classifier in model.classifiers.items():
 		classifier.to(device)
 	entity_start_token_id = tokenizer.convert_tokens_to_ids(["<E>"])[0]
-
+	
 	logging.info(f"Task dataset for task: {task} loaded from {data_file}.")
-
+	
 	model_config = dict()
 	results = dict()
 
@@ -717,7 +717,8 @@ def bert_classifier(data_file, task, save_directory, output_dir, retrain, batch_
 
 	predicted_labels, prediction_scores, gold_labels = make_predictions_on_dataset(test_dataloader, model, device, task)
 
-	# Test
+	
+	# Test 
 	for subtask in model.subtasks:
 		logging.info(f"Testing the trained classifier on subtask: {subtask}")
 		# print(len(test_dataloader))
