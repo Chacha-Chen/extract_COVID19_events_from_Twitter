@@ -66,10 +66,37 @@ def train_valid_test_split(index, train, valid, test):
 ################### training functions ####################
 # dataset
 # testing script
-def evaluation(model, dataloader, device="cuda:0"):
-    # TODO: 
-    # run model and extract the result
-    # call sklearn.metric.precision_recall_fscore_support to calculate the score
+def evaluation(model, dataloader, threshold=0.5, device="cuda:0"):
+    model.eval()
+    
+    for step, batch in enumerate(dataloader):
+    
+        for subtask in model.subtasks:
+            subtask_labels = batch["gold_labels"][subtask]
+            subtask_labels = subtask_labels.to(device)
+            batch["gold_labels"][subtask] = subtask_labels
+
+        input_dict = {"input_ids": batch["input_ids"].to(device),
+                      "entity_start_positions": batch["entity_start_positions"].to(device),
+                      "labels": batch["gold_labels"]}
+        
+        logits, _ = model(**input_dict)
+        
+        # Post-model subtask information aggregation.
+        test_logits = torch.stack(logits, dim=1).type(torch.float)
+        test_labels = torch.stack([batch["gold_labels"][subtask] for subtask in model.subtasks], dim =1).type(torch.float)
+    
+    # Moving to cpu for evaluations.
+    test_logits = test_logits.detach().cpu().numpy()
+    test_labels = test_labels.detach().cpu().numpy()
+    
+    # Assessment on the results according to labels and logits.  
+    prediction = (test_logits[subtask] > threshold).astype(int)
+    
+    precision = np.array([metrics.precision_score(prediction[:,idx], test_labels[:,idx]) for idx in range(test_labels.shape[1])])
+    recall = np.array([metrics.recall_score(prediction[:,idx], test_labels[:,idx]) for idx in range(test_labels.shape[1])])
+    f1 = np.array([metrics.f1_score(prediction[:,idx], test_labels[:,idx]) for idx in range(test_labels.shape[1])])
+    
     return precision, recall, f1, prediction
 
 # prediction script
