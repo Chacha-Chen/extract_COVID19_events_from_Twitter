@@ -50,7 +50,9 @@ class TokenizeCollator():
         attention_mask = tokenized_input_text_list_batch['attention_mask']
 
         # Further processing
-        entity_start_positions = (input_ids == self.entity_start_token_id).nonzero()
+        # entity_start_positions = (input_ids == self.entity_start_token_id).nonzero()
+        entity_start_positions = torch.nonzero(input_ids == self.entity_start_token_id, as_tuple=False)
+
         input_label_dict = {
             subtask: torch.LongTensor(gold_label_list)
             for subtask, gold_label_list in gold_label_dict_batch.items()
