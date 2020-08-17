@@ -73,23 +73,23 @@ class TokenizeCollator():
         }
 
 
-        
 def loadData (event,
               entity_start_token_id,
               tokenizer,
-              # pretrained_tokenizer = 'bert-base-cased',
               batch_size = 8,
               train_ratio = 0.6, dev_ratio = 0.15,
-              shuffle_train_data_flg = True, num_workers = 0 ):
+              shuffle_train_data_flg = True, num_workers = 0,
+              input_text_processing_func_list=[],
+              gold_chunk_processing_func_list=[]):
     """Return DataLoader for train/dev/test and subtask_list
 
     Input:
-     event -- name of event, one of 
+    event -- name of event, one of 
              ['positive', 'negative', 'can_not_test', 'death', 'cure_and_prevention']
+    tokenizer
+    
     
     Keyword Arguments:
-    tokenizer_class -- Tokenizer from transformers, either BertTokenizer or BertTokenizerFast
-    pretrained_tokenizer -- name of pretrained tokenizer [default 'bert-base-cased']
     batch_size  -- [default 8]
     train_ratio -- [default 0.6]
     dev_ratio   -- [default 0.15]
@@ -110,15 +110,7 @@ def loadData (event,
 # num_workers = 0
 
     # Init Tokenizer
-    # tokenizer = tokenizer_class.from_pretrained(pretrained_tokenizer)
-    # tokenizer.add_special_tokens(
-    #     {"additional_special_tokens": ["<E>", "</E>", "<URL>", "@USER"]})
-    # tokenizer.add_tokens(["<E>", "</E>", "<URL>", "@USER"])
-    # tokenizer.save_pretrained(save_directory)
-    # QUESTION should I also return tokenizer length?
-    #         model.resize_token_embeddings(len(tokenizer))
-
-    # entity_start_token_id #= tokenizer.convert_tokens_to_ids(["<E>"])[0]
+    # entity_start_token_id = tokenizer.convert_tokens_to_ids(["<E>"])[0]
 
     # Load Data
     preprocessed_data_file = os.path.join(const.DATA_FOLDER, f'{event}-preprocessed-data.pkl')
@@ -130,14 +122,37 @@ def loadData (event,
     # 
     subtask_list, raw_input_text_and_label_list = loadFromPickleFile(preprocessed_data_file)
 
+    if input_text_processing_func_list:
+        tmp_list = []
+        for tweet_text, input_text, subtask_label_dict in raw_input_text_and_label_list:
+
+            for processing_func in input_text_processing_func_list:
+                input_text = processing_func(input_text)
+            tmp_list.append((tweet_text, input_text, subtask_label_dict))
+        # TODO do we need to expliticly del(tmp_list)?
+        raw_input_text_and_label_list = tmp_list
+
+    if gold_chunk_processing_func_list:
+        tmp_list = []
+        for tweet_text, input_text, subtask_label_dict in raw_input_text_and_label_list:
+
+            for subtask, (gold_chunk_list, gold_label) in subtask_label_dict.items():
+                for processing_func in gold_chunk_processing_func_list:
+                    gold_chunk_list = [processing_func(gold_chunk) for gold_chunk in gold_chunk_list]
+                    subtask_label_dict[subtask] = (gold_chunk_list, gold_label)
+
+            tmp_list.append((tweet_text, input_text, subtask_label_dict))
+        raw_input_text_and_label_list = tmp_list
+
+
     (train_instance_list,
-    dev_instance_list,
-    test_instance_list) = splitDatasetIntoTrainDevTest(
-        raw_input_text_and_label_list, train_ratio=train_ratio, dev_ratio=dev_ratio)
+     dev_instance_list,
+     test_instance_list) = splitDatasetIntoTrainDevTest(
+         raw_input_text_and_label_list, train_ratio=train_ratio, dev_ratio=dev_ratio)
 
     # TODO move to logging
     print(f"Dataset Size Report: {len(train_instance_list)} / "
-        f"{len(dev_instance_list)} / {len(test_instance_list)} (train/dev/test)")
+          f"{len(dev_instance_list)} / {len(test_instance_list)} (train/dev/test)")
 
     train_dataset = COVID19TaskDataset(train_instance_list)
     dev_dataset   = COVID19TaskDataset(dev_instance_list)
