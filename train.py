@@ -217,12 +217,10 @@ def train():
         tokenizer.save_pretrained(args.save_directory)
         entity_start_token_id = tokenizer.convert_tokens_to_ids(["<E>"])[0]
 
-        train_dataloader, valid_dataloader, test_dataloader, subtask_list = loadData(args.event,
-                                                                                   entity_start_token_id,
-                                                                                   tokenizer,
-                                                                                 batch_size=8,
-                                                                                 train_ratio=0.6, dev_ratio=0.15,
-                                                                                 shuffle_train_data_flg=True, num_workers=0)
+        (train_dataloader, valid_dataloader, test_dataloader, subtask_list) = loadData(
+            args.event, entity_start_token_id, tokenizer,
+            batch_size=8, train_ratio=0.6, dev_ratio=0.15, shuffle_train_data_flg=True, num_workers=0)
+
         config = BertConfig.from_pretrained('bert-base-cased')
         config.subtasks = subtask_list
         # # model = MultiTaskBertForCovidEntityClassification.from_pretrained('bert-base-cased', config=config)
