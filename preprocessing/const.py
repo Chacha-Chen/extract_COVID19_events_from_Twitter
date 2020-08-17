@@ -10,3 +10,5 @@ DATA_FOLDER = './data'
 OUTPUT_DATA_FOLDER = '.'
 
 MIN_POS_SAMPLES_THRESHOLD = 10
+
+EVENT_LIST = ['positive', 'negative', 'can_not_test', 'death', 'cure_and_prevention']
