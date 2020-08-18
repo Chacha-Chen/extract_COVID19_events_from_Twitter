@@ -65,8 +65,8 @@ def train_valid_test_split(index, train, valid, test):
 
 ################### training functions ####################
 # dataset
-# testing script
-def evaluation(model, dataloader, threshold=0.5, device="cuda:0"):
+# testing/val script
+def evaluation(model, dataloader, device, threshold=0.5):
     model.eval()
     
     for step, batch in enumerate(dataloader):
@@ -83,30 +83,106 @@ def evaluation(model, dataloader, threshold=0.5, device="cuda:0"):
         logits, _ = model(**input_dict)
         
         # Post-model subtask information aggregation.
+        dev_logits = torch.stack(logits, dim=1).type(torch.float)
+        dev_labels = torch.stack([batch["gold_labels"][subtask] for subtask in model.subtasks], dim =1).type(torch.int)
+    
+    # Moving to cpu for evaluations.
+    dev_logits = dev_logits.detach().cpu().numpy()
+    dev_labels = dev_labels.detach().cpu().numpy()
+    
+    # Assessment on the results according to labels and logits.  
+    prediction = (dev_logits[subtask] > threshold).astype(int)
+    
+    # Calculating metrics
+    precision = np.array([metrics.precision_score(prediction[:,idx], dev_labels[:,idx]) for idx in range(dev_labels.shape[1])])
+    recall = np.array([metrics.recall_score(prediction[:,idx], dev_labels[:,idx]) for idx in range(dev_labels.shape[1])])
+    f1 = np.array([metrics.f1_score(prediction[:,idx], dev_labels[:,idx]) for idx in range(dev_labels.shape[1])])
+    confusion_matrix = np.array([metrics.confusion_matrix(prediction[:,idx], dev_labels[:,idx]).ravel() for idx in range(dev_labels.shape[1])])
+    
+    return precision, recall, f1, prediction, confusion_matrix
+
+# prediction script
+def make_prediction(model, dataloader, device, threshold=0.5):
+    # run model and predict without having "y" label
+    # only return the prediction
+    
+    model.eval()
+    
+    for step, batch in enumerate(dataloader):
+
+        input_dict = {"input_ids": batch["input_ids"].to(device),
+                      "entity_start_positions": batch["entity_start_positions"].to(device)}
+        
+        logits, _ = model(**input_dict)
+        
+        # Post-model subtask information aggregation.
         test_logits = torch.stack(logits, dim=1).type(torch.float)
-        test_labels = torch.stack([batch["gold_labels"][subtask] for subtask in model.subtasks], dim =1).type(torch.float)
     
     # Moving to cpu for evaluations.
     test_logits = test_logits.detach().cpu().numpy()
-    test_labels = test_labels.detach().cpu().numpy()
     
     # Assessment on the results according to labels and logits.  
     prediction = (test_logits[subtask] > threshold).astype(int)
     
-    precision = np.array([metrics.precision_score(prediction[:,idx], test_labels[:,idx]) for idx in range(test_labels.shape[1])])
-    recall = np.array([metrics.recall_score(prediction[:,idx], test_labels[:,idx]) for idx in range(test_labels.shape[1])])
-    f1 = np.array([metrics.f1_score(prediction[:,idx], test_labels[:,idx]) for idx in range(test_labels.shape[1])])
     
-    return precision, recall, f1, prediction
-
-# prediction script
-def make_prediction(model, dataloader, device="cuda:0"):
-    # TODO: (not for now, but will need this in the future)
-    # run model and predict without having "y" label
-    # only return the prediction
     return prediction
 
+def post_processing(model, valid_dataloader, test_dataloader, device):
+    # Save the model name in the model_config file
+    model_config = dict()
+    results = dict()
+    model_config["model"] = "MultiTaskBertForCovidEntityClassification_new"
+    model_config["epochs"] = args.n_epochs
+    
+    # Check different thresholds
+    thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    # Evaluate on different thresholds in val set
+    dev_results = [evaluation(model, valid_dataloader, t, device) for t in thresholds]
+    
+    # Finding out the best threshold
+    # Getting the f1 scores on different thresholds and in every subtasks
+    dev_f1_scores = np.array([dev_results[2] for t in thresholds]) # (thresholds_idx, subtask_idx)
+    # Calculating the best thresholds indices on different subtasks
+    best_dev_thresholds_idx = np.argmax(dev_f1_scores, axis=0)
+    
+    assert(best_dev_thresholds_idx.size[0] == len(model.subtasks), "Expected subtask size: "+len(model.subtasks)+" with calculated "+best_dev_thresholds_idx.size+".")
+    
+    best_dev_F1s = {}
+    best_dev_thresholds = {}
+    dev_subtasks_t_F1_P_Rs = {}
+    for subtask_idx in range(best_dev_thresholds_idx.size[0]):
+        # Find the subtasks using index
+        subtask = model.subtasks[subtask_idx]
+        # Find the thresholds of that task using index
+        best_thresholds_idx = best_dev_thresholds_idx[subtask_idx]
+        
+        # Find bests
+        # Find the best F1 of that task using index
+        best_dev_F1s[subtask] = dev_f1_scores[best_thresholds_idx, subtask_idx]
+        # Find the best threshold of that task using index
+        best_dev_thresholds[subtask] = thresholds[best_thresholds_idx]
+        
+        # Log all results in output formats
+        for t in thresholds:
+            dev_P = dev_results[t][0][subtask_idx]
+            dev_R = dev_results[t][1][subtask_idx]
+            dev_F1 = dev_results[t][2][subtask_idx]
+            dev_TN, dev_FP, dev_FN, dev_TP = dev_results[t][4][subtask_idx]
+            
+            dev_subtasks_t_F1_P_Rs[subtask].append((t, dev_F1, dev_P, dev_R, dev_TP + dev_FN, dev_TP, dev_FP, dev_FN)) # Copy-pasted from original code
 
+
+    # Save model_config and results
+    model_config_file = os.path.join(args.output_dir, "model_config.json")
+    results_file = os.path.join(args.output_dir, "results.json")
+    logging.info(f"Saving model config at {model_config_file}")
+    save_in_json(model_config, model_config_file)
+    logging.info(f"Saving results at {results_file}")
+    save_in_json(results, results_file)
+    
+    
+    
+'''
 def post_processing(model,args,dev_dataloader,device,dev_subtasks_data,test_subtasks_data,test_dataloader):
     # Save the model name in the model_config file
     model_config = dict()
@@ -206,7 +282,7 @@ def post_processing(model,args,dev_dataloader,device,dev_subtasks_data,test_subt
     save_in_json(model_config, model_config_file)
     logging.info(f"Saving results at {results_file}")
     save_in_json(results, results_file)
-
+'''
 # training function
 def train():
     args = parse_arg()
@@ -382,10 +458,10 @@ def train():
 
             # run validation
             if (step + 1) % dev_steps == 0:
-                model.eval()
+                # model.eval()
                 ##   TODO evaluation
-                # precision, recall, f1, prediction = evaluation(model, valid_dataloader, device=device)
-                # print(f"Validation result. Precision={precision:.3f}, Recall={recall:.3f}, F1={f1:.3f}")
+                precision, recall, f1, prediction, _ = evaluation(model, valid_dataloader, device=device)
+                print(f"Validation result. Precision={precision:.3f}, Recall={recall:.3f}, F1={f1:.3f}")
                 #
                 # # check if this is the best model or not
                 # if f1 >= best_score:
@@ -426,7 +502,7 @@ def train():
     # (1) probing threshold for each subtask
     # (2) save threshold 
     # precision, recall, f1, prediction = evaluation(model, test_dataloader, device=device)
-    post_processing(model, args, valid_dataloader, device, dev_subtasks_data, test_subtasks_data, test_dataloader)
+    post_processing(args, model, valid_dataloader, test_dataloader, device=device)
 
 def main():
     train()
