@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 import logging
 import os
 from preprocessing.preprocessData import splitDatasetIntoTrainDevTest, preprocessDataAndSave
-from utils import loadFromPickleFile
+from preprocessing.utils import loadFromPickleFile
 from preprocessing import const
 
 class COVID19TaskDataset(Dataset):

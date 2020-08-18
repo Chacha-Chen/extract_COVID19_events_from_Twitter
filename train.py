@@ -6,8 +6,8 @@ import torch
 from model import MultiTaskBertForCovidEntityClassification,MultiTaskBertForCovidEntityClassification_new
 import numpy as np
 from preprocessing.loadData import loadData
-from multitask_bert_entitity_classifier import load_from_pickle, get_multitask_instances_for_valid_tasks, COVID19TaskDataset, TokenizeCollator, format_time, plot_train_loss,split_data_based_on_subtasks, make_predictions_on_dataset,make_dir_if_not_exists
-from utils import log_list, split_multitask_instances_in_train_dev_test, log_data_statistics, save_in_json, get_raw_scores, get_TP_FP_FN
+# from multitask_bert_entitity_classifier import load_from_pickle, get_multitask_instances_for_valid_tasks, COVID19TaskDataset, TokenizeCollator, format_time, plot_train_loss,split_data_based_on_subtasks, make_predictions_on_dataset,make_dir_if_not_exists
+# from utils import log_list, split_multitask_instances_in_train_dev_test, log_data_statistics, save_in_json, get_raw_scores, get_TP_FP_FN
 import logging
 from collections import Counter
 import pickle

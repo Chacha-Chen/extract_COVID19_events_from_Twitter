@@ -7,7 +7,7 @@ import copy
 from itertools import compress as itertools_compress
 
 from preprocessing.getQuestionTagAndKey import getQuestionTagAndKeyList
-from utils import (saveToPickleFile, loadFromPickleFile)
+from preprocessing.utils import (saveToPickleFile, loadFromPickleFile)
 from preprocessing import const
 
 # NOTE 1) Separate statistics and preprocessing for readability
