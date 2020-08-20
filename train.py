@@ -20,16 +20,14 @@ YAQI_FLAG = True
 EVENT_LIST = ['positive', 'negative', 'can_not_test', 'death', 'cure_and_prevention']
 ################### util ####################
 def parse_arg():
-    # TODO: add the following arguments
-    # (1) gpu, default 0
-    # (2) learning rate, default 2e-5
 
     parser = argparse.ArgumentParser()
-    # parser.add_argument("-d", "--data_file", help="Path to the data file", type=str, default='./data/test_positive.pkl')
     parser.add_argument("-o", "--output_dir", help="Path to the output directory", type=str, default='./results/8_epochs_test_0819')
-    parser.add_argument("-rt", "--retrain", help="True if the model needs to be retrained", action="store_false", default=False)
+    parser.add_argument("-rt", "--retrain", help="True if the model needs to be retrained", action="store_false", default=True)
     parser.add_argument("-bs", "--batch_size", help="Train batch size for BERT model", type=int, default=32)
-    parser.add_argument("-e", "--n_epochs", help="Number of epochs", type=int, default=1)
+    parser.add_argument("-e", "--n_epochs", help="Number of epochs", type=int, default=8)
+    parser.add_argument("-lr", "--learning_rate", help="learning rate", type=float, default=2e-5)
+
     return parser.parse_args()
 
 def train_valid_test_split(index, train, valid, test):
@@ -364,7 +362,7 @@ def train(event, logging, args):
 
 
     # init optimizer and scheduler
-    optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate, eps=1e-8)
     total_steps = len(train_dataloader) * args.n_epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
     best_model = None
