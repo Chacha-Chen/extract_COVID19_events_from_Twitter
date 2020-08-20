@@ -19,7 +19,7 @@ EVENT_LIST = ['positive', 'negative', 'can_not_test', 'death', 'cure_and_prevent
 def parse_arg():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-o", "--output_dir", help="Path to the output directory", type=str, default='./results/8_epochs_test_0819')
+    parser.add_argument("-o", "--output_dir", help="Path to the output directory", type=str, default='./results/chacha_debug')
     parser.add_argument("-rt", "--retrain", help="True if the model needs to be retrained", action="store_false", default=True)
     parser.add_argument("-bs", "--batch_size", help="Train batch size for BERT model", type=int, default=32)
     parser.add_argument("-e", "--n_epochs", help="Number of epochs", type=int, default=8)
@@ -286,6 +286,8 @@ def post_processing(args, model, valid_dataloader, test_dataloader, device):
 
 
 def train(event, logging, args):
+    event_output_dir = os.path.join(args.output_dir,event)
+    make_dir_if_not_exists(event_output_dir)
     # parameter setting
     max_len = 100       # TODO: compute the statistic of the length
     # subtask_num = 5     # might need to re-assign value after loading the data
@@ -302,7 +304,7 @@ def train(event, logging, args):
     if YAQI_FLAG:
         tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
         tokenizer.add_tokens(["<E>", "</E>", "<URL>", "@USER"])
-        tokenizer.save_pretrained(args.output_dir)
+        tokenizer.save_pretrained(event_output_dir)
         entity_start_token_id = tokenizer.convert_tokens_to_ids(["<E>"])[0]
 
         # # data split (TODO: a better way to ensure the balance of subtask)
@@ -469,10 +471,10 @@ def train(event, logging, args):
     print(f"Best Validation Score = {best_score} at {best_epoch}")
     if args.retrain:
         model.load_state_dict(best_model) ##TODO best model
-    model.save_pretrained(args.output_dir)
+    model.save_pretrained(event_output_dir)
 
     # Plot the train loss trajectory in a plot
-    train_loss_trajectory_plot_file = os.path.join(args.output_dir, "train_loss_trajectory.png")
+    train_loss_trajectory_plot_file = os.path.join(args.output_dir, "train_loss_trajectory_{0}.png".format(event))
     logging.info(f"Saving the Train loss trajectory at {train_loss_trajectory_plot_file}")
     plot_train_loss(epoch_train_loss, train_loss_trajectory_plot_file)
 
