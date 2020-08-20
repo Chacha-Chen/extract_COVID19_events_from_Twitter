@@ -13,10 +13,7 @@ import os
 from tqdm import tqdm
 import argparse
 import time
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
 YAQI_FLAG = True
-
 EVENT_LIST = ['positive', 'negative', 'can_not_test', 'death', 'cure_and_prevention']
 ################### util ####################
 def parse_arg():
@@ -508,7 +505,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                         handlers=[logging.FileHandler(logfile, mode='w'), logging.StreamHandler()])
 
-    for event in EVENT_LIST[1:]:
+    for event in EVENT_LIST:
         print("Working in Event:", event)
         train(event, logging, args)
 
