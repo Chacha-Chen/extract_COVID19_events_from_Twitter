@@ -442,7 +442,9 @@ def train(event, logging, args):
                     print('\n')
                     print(f"Validation result. Precision",precision, "Recall", recall, "F1", f1)
                     #
-                    # # check if this is the best model or not
+                    # # TODO implement micro F1 or macro F1 here
+                    f1 = np.mean(f1)
+                    print(f1)
                     if f1 >= best_score:
                         best_model = copy.deepcopy(model.state_dict())
                         best_score = f1
