@@ -117,7 +117,7 @@ class MultiTaskBertForCovidEntityClassification_new(BertPreTrainedModel):
         # build subtask mask
         # subtask_mask = self.build_subtack_mask(subtask)
         # logits = all_logits * subtask_mask
-        #
+        ## TODO change to self.subtasks
         y = torch.stack([labels[subtask] for subtask in labels.keys()], dim =1).type(torch.float)
         if y is not None:
             #loss_fct = nn.CrossEntropyLoss()
